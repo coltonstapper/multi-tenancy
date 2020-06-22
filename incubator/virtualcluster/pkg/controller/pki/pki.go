@@ -121,7 +121,7 @@ func NewEtcdServerCrtAndKey(ca *CrtKeyPair, etcdDomains []string) (*CrtKeyPair, 
 	// create AltNames with defaults DNSNames/IPs
 	altNames := &cert.AltNames{
 		DNSNames: etcdDomains,
-		IPs:      []net.IP{net.ParseIP("127.0.0.1")},
+		IPs:      []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("0.0.0.0")},
 	}
 
 	config := &cert.Config{
