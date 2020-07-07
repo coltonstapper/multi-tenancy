@@ -19,9 +19,9 @@ package virtualcluster
 import (
 	"context"
 	"crypto/rsa"
+	"encoding/base64"
 	"errors"
 	"fmt"
-
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,12 +29,12 @@ import (
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/pkiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-
 	tenancyv1alpha1 "sigs.k8s.io/multi-tenancy/incubator/virtualcluster/pkg/apis/tenancy/v1alpha1"
 	"sigs.k8s.io/multi-tenancy/incubator/virtualcluster/pkg/controller/kubeconfig"
 	vcpki "sigs.k8s.io/multi-tenancy/incubator/virtualcluster/pkg/controller/pki"
 	"sigs.k8s.io/multi-tenancy/incubator/virtualcluster/pkg/controller/secret"
 	kubeutil "sigs.k8s.io/multi-tenancy/incubator/virtualcluster/pkg/controller/util/kube"
+	"sigs.k8s.io/multi-tenancy/incubator/virtualcluster/pkg/syncer/constants"
 	"sigs.k8s.io/multi-tenancy/incubator/virtualcluster/pkg/syncer/conversion"
 )
 
@@ -76,6 +76,14 @@ func (mpn *MasterProvisionerNative) CreateVirtualCluster(vc *tenancyv1alpha1.Vir
 	if err != nil {
 		return err
 	}
+
+	// 2. add metadata to the vc
+	vcNS := conversion.ToClusterKey(vc)
+	err = kubeutil.AnnotateVC(mpn, vc, constants.LabelCluster, vcNS, log)
+	if err != nil {
+		return err
+	}
+	log.Info("cluster key has been added to vc as an annotation", "vc", vc.GetName(), "cluster-key", vcNS)
 
 	// 3. create PKI
 	err = mpn.createPKI(vc, cv)
@@ -309,6 +317,14 @@ func (mpn *MasterProvisionerNative) createPKI(vc *tenancyv1alpha1.VirtualCluster
 	if genSrtsErr != nil {
 		return genSrtsErr
 	}
+
+	// store the kubeconfig on the virtualcluster
+	kbCfgB64 := base64.StdEncoding.EncodeToString([]byte(adminKbCfg))
+	err = kubeutil.AnnotateVC(mpn, vc, constants.LabelAdminKubeConfig, kbCfgB64, log)
+	if err != nil {
+		return err
+	}
+	log.Info("admin-kubeconfig has been added to vc as an annotation", "vc", vc.GetName())
 
 	return nil
 }
